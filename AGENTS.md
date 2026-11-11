@@ -12,6 +12,7 @@ This is an Arduino sketch project built and uploaded with `arduino-cli` (no Ardu
 | RTC | DS3231 module on I2C: SDA = A4, SCL = A5 |
 | Motor (kit, in use) | 1 × 28BYJ-48 5V unipolar stepper, from the Smraza kit |
 | Motor driver (kit, in use) | 1 × ULN2003 board (inputs IN1–IN4, "+" and "−" power pins, power jumper) |
+| Display | Kit 1602A 16×2 parallel LCD (HD44780), driven by the `LiquidCrystal` library |
 | Motor (not wired yet) | Adafruit P324 NEMA-17 bipolar stepper: 12V, 350 mA, 200 steps/rev, 35 Ω coils. Coil A = red + yellow, coil B = green + brown/gray. **Cannot use a ULN2003**: needs an H-bridge driver (A4988, TB6612, L298N), which the kit does not include |
 
 ### Pin assignments
@@ -22,6 +23,9 @@ This is an Arduino sketch project built and uploaded with `arduino-cli` (no Ardu
 | Stepper 1 (28BYJ-48) IN1, IN2, IN3, IN4 | D8, D9, D10, D11 |
 | Stepper 1 ULN2003 power | "+" → Uno 5V, "−" → Uno GND (OK for one 28BYJ-48 on USB power) |
 | Stepper 2 | _not yet decided_ (second 28BYJ-48 + ULN2003, or the NEMA-17 once a driver is bought) |
+| 1602 LCD RS, E | D7, D6 |
+| 1602 LCD D4, D5, D6, D7 | D5, D4, D3, D2 (LCD D0–D3 unconnected, 4-bit mode) |
+| 1602 LCD power | VSS, RW, K → GND; VDD → 5V; A (backlight) → 5V through 220 Ω; V0 → GND with a plain jumper (full contrast, no potentiometer). On this screen 1 kΩ to GND left it completely blank; if text is too dark, use 220 Ω–1 kΩ instead of the jumper |
 
 The Uno has a single 5V pin, so the DS3231 and the ULN2003 share it through the breadboard's power rail. Update this table when the wiring changes.
 
@@ -33,10 +37,10 @@ Pin rules:
 ## Toolchain
 
 - `arduino-cli` 1.6.0 (Homebrew), core `arduino:avr` 1.8.8
-- Libraries: `RTClib` 2.1.4 and its dependency `Adafruit BusIO`
+- Libraries: `RTClib` 2.1.4 and its dependency `Adafruit BusIO`; `LiquidCrystal` 1.0.7
 - On Apple Silicon Macs the AVR compiler is an x86_64 binary and needs Rosetta 2 (`softwareupdate --install-rosetta --agree-to-license`). A `bad CPU type in executable` error means Rosetta is missing.
 - Board FQBN: `arduino:avr:uno`. If uploads fail with `not in sync` errors, the clone has the old bootloader: use `arduino:avr:nano:cpu=atmega328old` instead.
-- On the author's Mac the board shows up as `/dev/cu.usbmodem1301` and `arduino-cli board list` identifies it as "Arduino UNO" (`arduino:avr:uno`). The port name can change when it's plugged into a different USB port, so rerun `board list` if an upload can't find it.
+- On the author's Mac the board has shown up as `/dev/cu.usbmodem1301` and `/dev/cu.usbmodem1401` (it depends on the USB socket), and `arduino-cli board list` identifies it as "Arduino UNO" (`arduino:avr:uno`). The port name can change when it's plugged into a different USB port, so rerun `board list` if an upload can't find it.
 
 ## Commands
 
@@ -71,6 +75,7 @@ A sketch lives in its own folder, and the `.ino` file must have the same name as
 |--------|---------|
 | `rtc_test/` | Prints DS3231 time and temperature every second. Accepts the `T` set-time command |
 | `motor_test/` | Turns the 28BYJ-48 one revolution forward and back, repeating |
+| `lcd_test/` | Prints a test message and uptime on the 1602 LCD, for checking wiring and contrast |
 | `solar_tracker/` | **Main sketch.** Points the motor at the sun's compass direction (azimuth) from the RTC time |
 
 ### solar_tracker behavior
@@ -79,4 +84,5 @@ A sketch lives in its own folder, and the `.ino` file must have the same name as
 - Motor range: step 0 = due east (90°), 2048 half-steps = due west (270°). While the sun is up the motor follows its azimuth, waiting at the nearest end when the sun is outside 90–270° (Boston summer sunrise and sunset are around 56° and 304°). At night it goes home to step 0.
 - **There is no position sensor. At power-up the motor is assumed to be at step 0 (east)**, so the shaft must point east before the board is powered. A reset in the middle of the day loses the real position.
 - Re-aims every 10 s and prints a status line every 60 s. Coils are off whenever the motor isn't moving.
-- Serial `D` plays today's sun path from 04:00 to 21:00 in about 60 s, then returns to real time. The `T` command sets the clock, as in `rtc_test`. If the RTC lost power, the motor stays home until the time is set.
+- LCD shows `HH:MM AzNNN ElNN` (or `HH:MM sun down`) on row 1, and `Panel NNN STATE` on row 2. STATE is TRACK, MOVE, WAIT (sun outside 90–270°), HOME (night) or DEMO; during the exaggerated demo row 2 is `DEMO NN% turn`. Refreshed every 500 ms by overwriting rows (no `lcd.clear()`, which would stall the motor).
+- Serial `D` plays today's sun path from 04:00 to 21:00 in about 30 s, then returns to real time. With `DEMO_EXAGGERATE = true` (the default) the demo maps the sunrise-to-sunset azimuth arc onto one full revolution (4096 steps) instead of true angles, and spins back home at sunset. This affects only the demo, never real tracking. The `T` command sets the clock, as in `rtc_test`. If the RTC lost power, the motor stays home until the time is set.

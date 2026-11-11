@@ -11,6 +11,7 @@ A single-axis sun tracker for an Arduino Uno. A DS3231 real-time clock supplies 
 | Arduino Uno (or clone) | Tested with a Smraza Uno clone |
 | DS3231 RTC module | With a CR2032 coin cell so it keeps time when unplugged |
 | 28BYJ-48 5V stepper + ULN2003 driver board | The pair included in most Arduino starter kits |
+| 1602 16×2 LCD + 220 Ω resistor | Status screen (optional) |
 | Breadboard + jumper wires | The Uno has only one 5V pin, so the RTC and driver share it through the breadboard rail |
 
 ### Wiring
@@ -24,6 +25,12 @@ A single-axis sun tracker for an Arduino Uno. A DS3231 real-time clock supplies 
 | ULN2003 "+" / "−" | 5V rail / GND rail (keep the board's power jumper on) |
 | Uno 5V / GND | 5V rail / GND rail |
 | 28BYJ-48 | The ULN2003's white 5-pin socket |
+| LCD RS, E | Uno **D7, D6** |
+| LCD D4, D5, D6, D7 | Uno **D5, D4, D3, D2** (leave LCD D0–D3 empty) |
+| LCD VSS, RW, K | GND rail |
+| LCD VDD | 5V rail |
+| LCD A (backlight) | 5V rail through a 220 Ω resistor |
+| LCD V0 | GND rail with a plain jumper (sets the contrast; with a resistor here the author's screen stayed blank. If your text is too dark, try 220 Ω–1 kΩ instead of the jumper) |
 
 One 28BYJ-48 draws about 240 mA, which is fine on USB power. For two motors, use a separate 5V supply and connect its ground to the Uno's GND.
 
@@ -36,7 +43,7 @@ brew install arduino-cli
 arduino-cli config init
 arduino-cli core update-index
 arduino-cli core install arduino:avr
-arduino-cli lib install RTClib
+arduino-cli lib install RTClib LiquidCrystal
 ```
 
 On Apple Silicon Macs the AVR compiler needs Rosetta 2:
@@ -89,9 +96,9 @@ The board prints a status line every minute:
 2026-11-10 10:00  sun az 156.2  el 27.3  ->  motor 754 steps (156.3 deg)
 ```
 
-`az` is the compass direction (90 = east, 180 = south, 270 = west), and `el` is the sun's height above the horizon.
+`az` is the compass direction (90 = east, 180 = south, 270 = west), and `el` is the sun's height above the horizon. The LCD shows the same information, e.g. `11:32 Az181 El31` on top and `Panel 181 TRACK` below.
 
-**Demo mode:** in the serial monitor, type `D` and press Enter. The board plays today's sun path from 04:00 to 21:00 in about a minute, then goes back to following the real clock.
+**Demo mode:** in the serial monitor, type `D` and press Enter. The board plays today's sun path from 04:00 to 21:00 in about 30 seconds, then goes back to following the real clock. To make it easier to see, the demo stretches the sunrise-to-sunset arc into one full revolution, and at sunset the motor spins quickly back home. Set `DEMO_EXAGGERATE = false` to demo the true angles instead.
 
 ## Configuration
 
@@ -102,6 +109,7 @@ At the top of [`solar_tracker/solar_tracker.ino`](solar_tracker/solar_tracker.in
 | `LATITUDE`, `LONGITUDE` | Your location in decimal degrees (west and south are negative). Set to Boston, MA by default |
 | `UTC_OFFSET_HOURS` | Your **standard-time** offset from UTC, e.g. `-5` for US Eastern |
 | `STEP_INTERVAL_US` | Time between motor steps. `1000` is about 15 RPM; much faster and the 28BYJ-48 skips steps |
+| `DEMO_EXAGGERATE` | `true`: the demo turns a full revolution from sunrise to sunset. `false`: the demo shows the true sun angles |
 
 ## How it works
 
@@ -116,6 +124,7 @@ At the top of [`solar_tracker/solar_tracker.ino`](solar_tracker/solar_tracker.in
 | `solar_tracker/` | Main sketch |
 | `rtc_test/` | Clock check: prints time and temperature, accepts the set-time command |
 | `motor_test/` | Stepper check: one revolution forward and back |
+| `lcd_test/` | Screen check: test message and uptime on the LCD |
 | `tools/set_rtc_time.pl` | Sets the DS3231 from your computer's clock over USB |
 | `AGENTS.md` | Project notes for AI coding agents (pinout, toolchain quirks, conventions) |
 | `CLAUDE.md` | Imports `AGENTS.md` for Claude Code |
